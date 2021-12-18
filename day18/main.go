@@ -207,12 +207,12 @@ func Reduce(t *Node) {
 	}
 }
 
-func Magnitude(t *Node) int64 {
+func Magnitude(t *Node) int {
 	if t == nil {
 		return 0
 	}
 	if t.isLeaf {
-		return int64(t.value)
+		return t.value
 	}
 	return 3*Magnitude(t.left) + 2*Magnitude(t.right)
 }
@@ -320,14 +320,14 @@ func main() {
 
 	var sum *Node
 
+	snailfishNumbers := []string{}
 	for _, line := range strings.Split(input, "\n") {
 		if line == "" {
 			continue
 		}
 
 		n := parseTree(line, nil)
-		fmt.Println(formatTree(n))
-
+		snailfishNumbers = append(snailfishNumbers, line)
 		if sum == nil {
 			sum = n
 		} else {
@@ -339,4 +339,29 @@ func main() {
 	fmt.Println()
 	fmt.Println("Sum =", formatTree(sum))
 	fmt.Println("Magnitude =", Magnitude(sum))
+
+	maxMagnitude := 0
+	for _, numA := range snailfishNumbers {
+		for _, numB := range snailfishNumbers {
+			a := parseTree(numA, nil)
+			b := parseTree(numB, nil)
+			s := Add(a, b)
+			Reduce(s)
+			m := Magnitude(s)
+			if m > maxMagnitude {
+				maxMagnitude = m
+			}
+
+			a = parseTree(numB, nil)
+			b = parseTree(numA, nil)
+			s = Add(a, b)
+			Reduce(s)
+			m = Magnitude(s)
+			if m > maxMagnitude {
+				maxMagnitude = m
+			}
+		}
+	}
+
+	fmt.Println("Max magnitude =", maxMagnitude)
 }
