@@ -116,41 +116,36 @@ func Explode(n *Node, level int) bool {
 		return false
 	}
 
-	fmt.Printf("level=%v node=%p %+v\n", level, n, n)
-	// XXX: Are we choosing the right pair, if there's multiple?
+	if level >= 4 && n.left != nil && n.right != nil && n.left.isLeaf && n.right.isLeaf {
+		leftValue := n.left.value
+		rightValue := n.right.value
 
-	if level == 4 {
-		if n.left != nil && n.right != nil && n.left.isLeaf && n.right.isLeaf {
-			leftValue := n.left.value
-			rightValue := n.right.value
+		n.isLeaf = true
+		n.value = 0
+		n.left = nil
+		n.right = nil
 
-			n.isLeaf = true
-			n.value = 0
-			n.left = nil
-			n.right = nil
-
-			// Climb up the tree, add leftValue to the first left leaf found
-			prev := n
-			for b := n.up; b != nil; b = b.up {
-				if b.left != prev {
-					addToFirstLeaf(b.left, leftValue, false)
-					break
-				}
-				prev = b
+		// Climb up the tree, add leftValue to the first left leaf found
+		prev := n
+		for b := n.up; b != nil; b = b.up {
+			if b.left != prev {
+				addToFirstLeaf(b.left, leftValue, false)
+				break
 			}
-
-			// Climb up the tree, add rightValue to the first right leaf found
-			prev = n
-			for b := n.up; b != nil; b = b.up {
-				if b.right != prev {
-					addToFirstLeaf(b.right, rightValue, true)
-					break
-				}
-				prev = b
-			}
-
-			return true
+			prev = b
 		}
+
+		// Climb up the tree, add rightValue to the first right leaf found
+		prev = n
+		for b := n.up; b != nil; b = b.up {
+			if b.right != prev {
+				addToFirstLeaf(b.right, rightValue, true)
+				break
+			}
+			prev = b
+		}
+
+		return true
 	} else {
 		if Explode(n.left, level+1) {
 			return true
@@ -196,16 +191,13 @@ func Add(a, b *Node) *Node {
 }
 
 func Reduce(t *Node) {
-	fmt.Println("Reducing", formatTree(t))
 	for {
 		reduceMore := false
 
-		if Explode(t, 0) {
-			fmt.Println("Exploded", formatTree(t))
+		for Explode(t, 0) {
 			reduceMore = true
 		}
 		if Split(t) {
-			fmt.Println("Split", formatTree(t))
 			reduceMore = true
 		}
 
@@ -317,18 +309,6 @@ func main() {
 		fileName = os.Args[1]
 	}
 
-	line := "[[[[4,0],[0,4]],[[7,7],[6,0]]],[[[6,6],[5,0]],[[6,6],[8,[[5,6],8]]]]]"
-	t := parseTree(line, nil)
-	fmt.Println(formatTree(t))
-	Explode(t, 0)
-	fmt.Println(formatTree(t))
-
-	//line = "[[[6,6],[5,0]],[[6,6],[8,[[5,6],8]]]]"
-	//t = parseTree(line, nil)
-	//Explode(t, 0)
-	//fmt.Println(formatTree(t))
-	os.Exit(1)
-
 	TestExplosions()
 	TestSplitsAndExplosions()
 	TestReduce()
@@ -340,7 +320,6 @@ func main() {
 
 	var sum *Node
 
-	fmt.Println("Summing it up")
 	for _, line := range strings.Split(input, "\n") {
 		if line == "" {
 			continue
