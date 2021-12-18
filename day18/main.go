@@ -91,8 +91,11 @@ func addToFirstLeaf(to *Node, val int, leftFirst bool) bool {
 		return true
 	}
 
-	first, second := to.left, to.right
-	if !leftFirst {
+	var first, second *Node
+
+	if leftFirst {
+		first, second = to.left, to.right
+	} else {
 		first, second = to.right, to.left
 	}
 
@@ -113,38 +116,41 @@ func Explode(n *Node, level int) bool {
 		return false
 	}
 
-	if level == 4 && n.left != nil && n.right != nil && n.left.isLeaf && n.right.isLeaf {
-		leftValue := n.left.value
-		rightValue := n.right.value
+	fmt.Printf("level=%v node=%p %+v\n", level, n, n)
+	// XXX: Are we choosing the right pair, if there's multiple?
 
-		n.isLeaf = true
-		n.value = 0
-		n.left = nil
-		n.right = nil
+	if level == 4 {
+		if n.left != nil && n.right != nil && n.left.isLeaf && n.right.isLeaf {
+			leftValue := n.left.value
+			rightValue := n.right.value
 
-		// Climb up the tree, add leftValue to the first left leaf found
-		prev := n
-		for b := n.up; b != nil; b = b.up {
-			if b.left != prev {
-				if addToFirstLeaf(b.left, leftValue, false) {
+			n.isLeaf = true
+			n.value = 0
+			n.left = nil
+			n.right = nil
+
+			// Climb up the tree, add leftValue to the first left leaf found
+			prev := n
+			for b := n.up; b != nil; b = b.up {
+				if b.left != prev {
+					addToFirstLeaf(b.left, leftValue, false)
 					break
 				}
+				prev = b
 			}
-			prev = b
-		}
 
-		// Climb up the tree, add rightValue to the first right leaf found
-		prev = n
-		for b := n.up; b != nil; b = b.up {
-			if b.right != prev {
-				if addToFirstLeaf(b.right, rightValue, true) {
+			// Climb up the tree, add rightValue to the first right leaf found
+			prev = n
+			for b := n.up; b != nil; b = b.up {
+				if b.right != prev {
+					addToFirstLeaf(b.right, rightValue, true)
 					break
 				}
+				prev = b
 			}
-			prev = b
-		}
 
-		return true
+			return true
+		}
 	} else {
 		if Explode(n.left, level+1) {
 			return true
@@ -209,12 +215,12 @@ func Reduce(t *Node) {
 	}
 }
 
-func Magnitude(t *Node) int {
+func Magnitude(t *Node) int64 {
 	if t == nil {
 		return 0
 	}
 	if t.isLeaf {
-		return t.value
+		return int64(t.value)
 	}
 	return 3*Magnitude(t.left) + 2*Magnitude(t.right)
 }
@@ -310,6 +316,18 @@ func main() {
 	if len(os.Args) > 1 {
 		fileName = os.Args[1]
 	}
+
+	line := "[[[[4,0],[0,4]],[[7,7],[6,0]]],[[[6,6],[5,0]],[[6,6],[8,[[5,6],8]]]]]"
+	t := parseTree(line, nil)
+	fmt.Println(formatTree(t))
+	Explode(t, 0)
+	fmt.Println(formatTree(t))
+
+	//line = "[[[6,6],[5,0]],[[6,6],[8,[[5,6],8]]]]"
+	//t = parseTree(line, nil)
+	//Explode(t, 0)
+	//fmt.Println(formatTree(t))
+	os.Exit(1)
 
 	TestExplosions()
 	TestSplitsAndExplosions()
