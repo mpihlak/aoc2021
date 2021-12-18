@@ -13,7 +13,6 @@ func MaxithinTarget(xs, ys, x1, x2, y1, y2 int) (int, bool) {
 	maxY := 0
 	found := false
 	for {
-		//fmt.Println(x, y, xs, ys)
 		if y > maxY {
 			maxY = y
 		}
