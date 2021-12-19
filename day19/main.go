@@ -135,16 +135,23 @@ func main() {
 
 	fmt.Println(len(scanners), "scanners loaded")
 
-	for i := 0; i < len(scanners)-1; i++ {
+	beaconsFound := 0
+	for i := 0; i < len(scanners); i++ {
+		beaconsFound += len(scanners[i].sensors)
+
 		for j := i + 1; j < len(scanners); j++ {
-			fmt.Printf("Findinig overlaps for scanners %d and %d\n", i, j)
-			FindOverlap(scanners[i], scanners[j])
+			if found, delta := FindOverlap(scanners[i], scanners[j]); found {
+				fmt.Printf("Overlaping scanners %d and %d. diff=%+v\n", i, j, delta)
+				beaconsFound -= 12
+			}
 		}
 	}
 
+	// 351 is too low
+	fmt.Println("Beacons found =", beaconsFound)
 }
 
-func FindOverlap(s1, s2 Scanner) bool {
+func FindOverlap(s1, s2 Scanner) (bool, Point) {
 	axes := []int{XAxis, YAxis, ZAxis}
 	signs := []int{1, -1}
 
@@ -153,16 +160,15 @@ func FindOverlap(s1, s2 Scanner) bool {
 			for _, ya := range axes {
 				for _, ys := range signs {
 					if xa != ya {
-						//fmt.Printf("Rotation xa=%d xs=%d ya=%d ys=%d\n", xa, xs, ya, ys)
 						r := RotateSensors(s2, xa, xs, ya, ys)
 						if found, delta := HaveOverlapWith(s1, r); found {
-							fmt.Println("Overlap found. d=", delta)
-							return true
+							//fmt.Println("Overlap found. d=", delta)
+							return true, delta
 						}
 					}
 				}
 			}
 		}
 	}
-	return false
+	return false, Point{}
 }
