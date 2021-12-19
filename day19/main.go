@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -19,16 +18,12 @@ type Point struct {
 type SensorMap map[Point]bool
 
 type Scanner struct {
-	sensors          []Point
-	minX, minY, minZ int
+	sensors []Point
 }
 
 func NewScanner() Scanner {
 	return Scanner{
 		sensors: make([]Point, 0),
-		minX:    math.MaxInt,
-		minY:    math.MaxInt,
-		minZ:    math.MaxInt,
 	}
 }
 
@@ -41,15 +36,6 @@ func (s *Scanner) Print() {
 }
 
 func (s *Scanner) addPoints(x, y, z int) {
-	if x < s.minX {
-		s.minX = x
-	}
-	if y < s.minY {
-		s.minY = y
-	}
-	if z < s.minZ {
-		s.minZ = z
-	}
 	s.sensors = append(s.sensors, Point{x, y, z})
 }
 
@@ -62,7 +48,6 @@ func PointVal(p Point, axis int) int {
 	default:
 		return p.z
 	}
-
 }
 
 func PointOrientation(p Point, xa, xdir, ya, ydir int) Point {
@@ -90,8 +75,6 @@ func PointOrientation(p Point, xa, xdir, ya, ydir int) Point {
 		}
 	}
 
-	//fmt.Printf("xa=%d xd=%d ya=%d yd=%d\t %v,%v,%v\n", xa, xdir, ya, ydir, r.x, r.y, r.z)
-
 	return r
 }
 
@@ -104,13 +87,23 @@ func RotateSensors(s Scanner, xa, xd, ya, yd int) Scanner {
 	return r
 }
 
-func (s *Scanner) Normalize() {
-	for k := range s.sensors {
-		p := &s.sensors[k]
-		p.x -= s.minX
-		p.y -= s.minY
-		p.z -= s.minZ
+func HaveOverlapWith(s1, s2 Scanner) (bool, Point) {
+	distanceMap := make(map[Point]int)
+
+	for _, v1 := range s1.sensors {
+		for _, v2 := range s2.sensors {
+			p := Point{v1.x - v2.x, v1.y - v2.y, v1.z - v2.z}
+			if _, ok := distanceMap[p]; ok {
+				//fmt.Println("Found:", v1, "d=", p)
+			}
+			distanceMap[p] += 1
+			if distanceMap[p] >= 12 {
+				return true, p
+			}
+		}
 	}
+
+	return false, Point{}
 }
 
 func main() {
@@ -140,21 +133,36 @@ func main() {
 		}
 	}
 
-	//p := Point{-2, -3, 1}
+	fmt.Println(len(scanners), "scanners loaded")
 
+	for i := 0; i < len(scanners)-1; i++ {
+		for j := i + 1; j < len(scanners); j++ {
+			fmt.Printf("Findinig overlaps for scanners %d and %d\n", i, j)
+			FindOverlap(scanners[i], scanners[j])
+		}
+	}
+
+}
+
+func FindOverlap(s1, s2 Scanner) bool {
 	axes := []int{XAxis, YAxis, ZAxis}
 	signs := []int{1, -1}
+
 	for _, xa := range axes {
 		for _, xs := range signs {
 			for _, ya := range axes {
 				for _, ys := range signs {
 					if xa != ya {
-						s1 := scanners[0]
-						s2 := RotateSensors(s1, xa, xs, ya, ys)
-						s2.Print()
+						//fmt.Printf("Rotation xa=%d xs=%d ya=%d ys=%d\n", xa, xs, ya, ys)
+						r := RotateSensors(s2, xa, xs, ya, ys)
+						if found, delta := HaveOverlapWith(s1, r); found {
+							fmt.Println("Overlap found. d=", delta)
+							return true
+						}
 					}
 				}
 			}
 		}
 	}
+	return false
 }
