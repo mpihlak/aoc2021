@@ -18,30 +18,26 @@ type Image struct {
 	points                         PointMap
 }
 
-var enchancementAlgo = ""
+var EnchancementAlgo = make([]int, 0)
 
 func NewImage() Image {
 	return Image{math.MaxInt, math.MaxInt, 0, 0, make(PointMap)}
 }
 
-func (img *Image) addPoint(rowNum, colNum int, c rune) {
-	if rowNum < img.minRow {
-		img.minRow = rowNum
+func (img *Image) addPoint(row, col int, v int) {
+	if row < img.minRow {
+		img.minRow = row
 	}
-	if rowNum > img.maxRow {
-		img.maxRow = rowNum
+	if row > img.maxRow {
+		img.maxRow = row
 	}
-	if colNum < img.minCol {
-		img.minCol = colNum
+	if col < img.minCol {
+		img.minCol = col
 	}
-	if colNum > img.maxCol {
-		img.maxCol = colNum
+	if col > img.maxCol {
+		img.maxCol = col
 	}
-	v := 0
-	if c == '#' {
-		v = 1
-	}
-	img.points[Point{rowNum, colNum}] = v
+	img.points[Point{row, col}] = v
 }
 
 func (img Image) pixelValue(row, col, defaultValue int) int {
@@ -59,24 +55,12 @@ func (img Image) pixelValue(row, col, defaultValue int) int {
 	return v
 }
 
-func (img Image) Enhance() Image {
-	result := NewImage()
-	for row := img.minRow - 2; row <= img.maxRow+2; row++ {
-		for col := img.minCol - 2; col <= img.maxCol+2; col++ {
-			p := img.pixelValue(row, col, 0)
-			n := rune(enchancementAlgo[p])
-			result.addPoint(row, col, n)
-		}
-	}
-	return result
-}
-
-func (img Image) Enhance2(defaultValue int) Image {
+func (img Image) Enhance(defaultValue int) Image {
 	result := NewImage()
 	for row := img.minRow - 2; row <= img.maxRow+1; row++ {
 		for col := img.minCol - 2; col <= img.maxCol+1; col++ {
 			p := img.pixelValue(row, col, defaultValue)
-			n := rune(enchancementAlgo[p])
+			n := EnchancementAlgo[p]
 			result.addPoint(row, col, n)
 		}
 	}
@@ -122,8 +106,14 @@ func main() {
 		if line == "" {
 			continue
 		}
-		if enchancementAlgo == "" {
-			enchancementAlgo = line
+		if len(EnchancementAlgo) == 0 {
+			for _, c := range line {
+				v := 0
+				if c == '#' {
+					v = 1
+				}
+				EnchancementAlgo = append(EnchancementAlgo, v)
+			}
 		} else {
 			inputImage = append(inputImage, line)
 		}
@@ -132,20 +122,22 @@ func main() {
 	image := NewImage()
 	for rowNum, row := range inputImage {
 		for colNum, c := range row {
-			image.addPoint(rowNum, colNum, c)
+			v := 0
+			if c == '#' {
+				v = 1
+			}
+			image.addPoint(rowNum, colNum, v)
 		}
 	}
 
-	newImage := image.Enhance2(0)
-	newImage = newImage.Enhance2(1)
+	newImage := image.Enhance(0)
+	newImage = newImage.Enhance(1)
 	fmt.Println("Pixels lit =", newImage.CountPixels())
 
 	newImage = image
 	for i := 0; i < 50; i++ {
 		defaultValue := i % 2
-		newImage = newImage.Enhance2(defaultValue)
+		newImage = newImage.Enhance(defaultValue)
 	}
 	fmt.Println("Pixels lit after 50 iterations =", newImage.CountPixels())
-
-	// 29004 is too high
 }
