@@ -20,8 +20,6 @@ type Rotation struct {
 	xa, xs, ya, ys, zs int
 }
 
-type SensorMap map[Point]bool
-
 type Scanner struct {
 	sensors []Point
 }
@@ -93,12 +91,8 @@ func HaveOverlapWith(s1, s2 Scanner, debug bool) (bool, Point) {
 	for _, v1 := range s1.sensors {
 		for _, v2 := range s2.sensors {
 			p := Point{v1.x - v2.x, v1.y - v2.y, v1.z - v2.z}
-			if _, ok := distanceMap[p]; ok {
-				if debug {
-					fmt.Println("Found:", v1, "d=", p)
-				}
-			}
 			distanceMap[p] += 1
+
 			if distanceMap[p] >= 12 {
 				return true, p
 			}
@@ -106,6 +100,36 @@ func HaveOverlapWith(s1, s2 Scanner, debug bool) (bool, Point) {
 	}
 
 	return false, Point{}
+}
+
+// Find possible overlaps by trying all possible rotations for scanner s2
+func FindOverlap(s1, s2 Scanner, debug bool) (bool, Point, Rotation) {
+	axes := []int{XAxis, YAxis, ZAxis}
+	signs := []int{1, -1}
+
+	for _, xa := range axes {
+		for _, xs := range signs {
+			for _, ya := range axes {
+				for _, ys := range signs {
+					if xa != ya {
+						// The third axis sign is actually constant depending on which are the
+						// first two axises, but we're lazy and just try all sign (I had it
+						// precalculated somewhere but lost it)
+						for _, zs := range signs {
+							r := RotateSensors(s2, xa, xs, ya, ys, zs)
+							if found, delta := HaveOverlapWith(s1, r, false); found {
+								if debug {
+									fmt.Println("Rotation", xa, xs, ya, ys, "Overlap d=", delta)
+								}
+								return true, delta, Rotation{xa, xs, ya, ys, zs}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return false, Point{}, Rotation{}
 }
 
 func FindOverlappingScanners(pos int, scanners []Scanner, found []bool, overlaps map[int]map[int]Point) {
@@ -124,37 +148,8 @@ func FindOverlappingScanners(pos int, scanners []Scanner, found []bool, overlaps
 	}
 }
 
-// Find possible overlaps by trying all possible rotations for scanner s2
-func FindOverlap(s1, s2 Scanner, debug bool) (bool, Point, Rotation) {
-	axes := []int{XAxis, YAxis, ZAxis}
-	signs := []int{1, -1}
-
-	for _, xa := range axes {
-		for _, xs := range signs {
-			for _, ya := range axes {
-				for _, ys := range signs {
-					if xa != ya {
-						// The third axis sign is actually constant depending on which are the
-						// first two axises, but we're lazy and just try all signs
-						for _, zs := range signs {
-							r := RotateSensors(s2, xa, xs, ya, ys, zs)
-							if found, delta := HaveOverlapWith(s1, r, false); found {
-								if debug {
-									fmt.Println("Rotation", xa, xs, ya, ys, "Overlap d=", delta)
-								}
-								return true, delta, Rotation{xa, xs, ya, ys, zs}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-	return false, Point{}, Rotation{}
-}
-
 // Calculate the correction factor for a given scanner. Just walk the graph towards scanner 0 and add values
-func calculateCorrection(startFrom int, visited map[int]bool, overlaps map[int]map[int]Point) (bool, Point) {
+func CalculateCorrection(startFrom int, visited map[int]bool, overlaps map[int]map[int]Point) (bool, Point) {
 	if startFrom == 0 {
 		return true, Point{}
 	}
@@ -168,7 +163,7 @@ func calculateCorrection(startFrom int, visited map[int]bool, overlaps map[int]m
 	}()
 
 	for to, v := range overlaps[startFrom] {
-		if found, d := calculateCorrection(to, visited, overlaps); found {
+		if found, d := CalculateCorrection(to, visited, overlaps); found {
 			r := Point{d.x + v.x, d.y + v.y, d.z + v.z}
 			return true, r
 		}
@@ -216,7 +211,7 @@ func main() {
 	// Find the corrections that normalize each scanner to scanner 0
 	corrections := make([]Point, len(scanners))
 	for i := 0; i < len(scanners); i++ {
-		_, c := calculateCorrection(i, make(map[int]bool), overlaps)
+		_, c := CalculateCorrection(i, make(map[int]bool), overlaps)
 		corrections[i] = c
 	}
 
