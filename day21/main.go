@@ -41,84 +41,59 @@ func PlayDeterministic(playerPosition1, playerPosition2 int) {
 	fmt.Println("Completion Score =", completionScore)
 }
 
-/*
- * Every throw of the dice generates 3 universes
- * n throws generate thus 3^n universes
- *
- * On the first cast, we get 3 universes
- * Player 1, starting from 4 would get thus 5, 6 and 7 points in the universes 1, 2 and 3 respectivelyj.
- * The second cast happens in universes 1, 2 and 3. There will be 3 outcomes in each of these universes,
- * resulting in 9 universes.
- * Player 2 (starting from 8) would get points 9, 10 and 1 in the 9 universes (9, 10, 1, 9, 10, 1, ...).
- * The second cast happens in 9 universes and results in 27 universes.
- * Player 1 will get points ...
- *
- * Except that each turn the player rolls the dice 3 times and adds up the results
- * So the first turn will create 27 universes that need to be "evaluated" in turn 2
- * It also may be that player 1 wins in some of these 27 universes
- */
-func PlayDirac(playerPosition1, playerPosition2 int) {
-	wins := [2]int64{}
-	playerScores := [2][27]int{}
-	playerPositions := [2][27]int{}
-	completed := [2]bool{}
-	for i := 0; i < 27; i++ {
-		playerPositions[0][i] = playerPosition1
-		playerPositions[1][i] = playerPosition2
-	}
+type DCacheKey struct {
+	player    int
+	scores    [2]int // This is a bad cache key
+	positions [2]int
+}
 
-	// We don't actually need all of the 27, there's just 7 unique values here (1+1+1 to 3+3+3)
-	// but too lazy
-	diceScores := []int{}
-	for i := 1; i <= 3; i++ {
-		for j := 1; j <= 3; j++ {
-			for k := 1; k <= 3; k++ {
-				diceScores = append(diceScores, i+j+k)
-			}
-		}
-	}
+type DCacheVal [2]uint64
 
-	currentPlayer := 0
-	universes := int64(1)
-	for iteration := 0; !(completed[0] && completed[1]); iteration++ {
-		universes *= 27
+var DCache = make(map[DCacheKey]DCacheVal)
 
-		// Each universe will split into 27 new universes
-		// Track player scores and positions for the 27 possible values
+func Dirac(rolls, currentPlayer, dieSum int, scores, positions [2]int, level int) [2]uint64 {
+	if rolls < 3 {
+		result := [2]uint64{}
 
-		positions := &playerPositions[currentPlayer]
-		scores := &playerScores[currentPlayer]
-
-		fmt.Printf("#%d: uni=%v player%d\n", iteration, universes, currentPlayer+1)
-		fmt.Println("scores=", scores)
-		fmt.Println("positions=", positions)
-
-		allBigScores := true
-
-		// Run through the results of all the 3 dice throw results in the 27 universes
-		for i, diceValue := range diceScores {
-			if scores[i] < 21 {
-				p := (positions[i]-1+diceValue)%10 + 1
-				positions[i] = p
-				scores[i] += p
-
-				other := (currentPlayer + 1) % 2
-				if scores[i] >= 21 && playerScores[other][i] < 21 {
-					wins[currentPlayer] += universes / 27
-				} else {
-					allBigScores = false
-				}
-			}
+		for i := 1; i <= 3; i++ {
+			v := Dirac(rolls+1, currentPlayer, dieSum+i, scores, positions, level+1)
+			result[0] += v[0]
+			result[1] += v[1]
 		}
 
-		if allBigScores {
-			completed[currentPlayer] = true
-			fmt.Printf("Player%d exhausted, %v wins.\n", currentPlayer+1, wins[currentPlayer])
-			fmt.Println(scores)
+		return result
+	} else {
+		// One player's turn has ended, update scores and start the next turn
+		otherPlayer := (currentPlayer + 1) % 2
+
+		newPos := (positions[currentPlayer]-1+dieSum)%10 + 1
+		scores[currentPlayer] = scores[currentPlayer] + newPos
+		positions[currentPlayer] = newPos
+
+		key := DCacheKey{currentPlayer, scores, positions}
+		if v, ok := DCache[key]; ok {
+			//fmt.Println(key, "Using a cached value", v)
+			return v
 		}
 
-		currentPlayer = (currentPlayer + 1) % 2
+		var v [2]uint64
+
+		if scores[currentPlayer] >= 21 && scores[otherPlayer] < 21 {
+			v[currentPlayer] = 1
+		} else {
+			v = Dirac(0, otherPlayer, 0, scores, positions, level+1)
+		}
+
+		//fmt.Println(key, "Storing a cached value")
+		DCache[key] = v
+
+		return v
 	}
+}
+
+func PlayRecursiveDirac(playerPosition1, playerPosition2 int) {
+	wins := Dirac(0, 0, 0, [2]int{}, [2]int{playerPosition1, playerPosition2}, 0)
+	fmt.Println(wins)
 }
 
 func main() {
@@ -136,5 +111,5 @@ func main() {
 	PlayDeterministic(playerPosition1, playerPosition2)
 
 	fmt.Println("Part 2")
-	PlayDirac(playerPosition1, playerPosition2)
+	PlayRecursiveDirac(playerPosition1, playerPosition2)
 }
