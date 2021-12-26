@@ -35,26 +35,26 @@ var EnergyCosts = map[rune]int{'A': 1, 'B': 10, 'C': 100, 'D': 1000}
 
 var MinEnergyUsed = math.MaxInt
 
-func addPosition(positions []Amphipod, a Amphipod, col, energySum int, grid [][]rune) []Amphipod {
+func addPosition(positions []Amphipod, a Amphipod, col, energy int, grid [][]rune) []Amphipod {
 	energyCost := EnergyCosts[a.class]
 
 	if col == AmphipodHomes[a.class] {
 		// We can move into our home room if it is empty or contains only our class
-		row := a.row
-		for i := HallwayRow + 1; grid[i][col] != '#'; i++ {
+		row := HallwayRow + 1
+		for i := row; grid[i][col] != '#'; i++ {
 			if grid[i][col] != '.' && grid[i][col] != a.class {
 				return positions
 			}
 			if grid[i][col] == '.' {
 				row = i
-				energySum += energyCost
+				energy += energyCost
 			}
 		}
 
-		positions = append(positions, Amphipod{a.class, row, col, true, a.energyUsed + energySum})
+		positions = append(positions, Amphipod{a.class, row, col, true, a.energyUsed + energy})
 	} else {
 		if !a.hasMoved && grid[HallwayRow+1][col] == '#' {
-			positions = append(positions, Amphipod{a.class, HallwayRow, col, true, a.energyUsed + energySum + energyCost})
+			positions = append(positions, Amphipod{a.class, HallwayRow, col, true, a.energyUsed + energy})
 		}
 	}
 
@@ -108,6 +108,7 @@ func OrganizeAmphipods(amphipods []Amphipod, grid [][]rune) int {
 
 outer:
 	for amphipodIndex, a := range amphipods {
+		//Print(grid)
 		//fmt.Println("Considering amphipod", a)
 
 		if isAtHome(a, grid) {
@@ -115,33 +116,39 @@ outer:
 		}
 
 		moveToPositions := []Amphipod{}
-		energy := 0
+		startingEnergy := 0
 
 		if !a.hasMoved {
-			// Still in a room, see if we can step out
+			// Still in a room, see if we can step out -- if yes,  what is the energy required to exit the room?
 			for i := a.row - 1; i >= HallwayRow; i-- {
 				if grid[i][a.col] != '.' {
+					// Something's in the way
 					continue outer
 				}
-				energy += EnergyCosts[a.class]
+				startingEnergy += EnergyCosts[a.class]
 			}
 		}
 
-		energySum := energy + EnergyCosts[a.class]
+		//fmt.Println("startingEnergy", startingEnergy)
+
+		energySum := startingEnergy
 		for i := a.col + 1; grid[HallwayRow][i] == '.'; i++ {
-			moveToPositions = addPosition(moveToPositions, a, i, energySum, grid)
 			energySum += EnergyCosts[a.class]
+			//fmt.Println("i=", i, "energySum", energySum)
+			moveToPositions = addPosition(moveToPositions, a, i, energySum, grid)
 		}
 
-		energySum = energy
+		//fmt.Println("move right", moveToPositions)
+
+		energySum = startingEnergy
 		for i := a.col - 1; grid[HallwayRow][i] == '.'; i-- {
-			moveToPositions = addPosition(moveToPositions, a, i, energySum, grid)
 			energySum += EnergyCosts[a.class]
+			moveToPositions = addPosition(moveToPositions, a, i, energySum, grid)
 		}
+
+		//fmt.Println("move left", moveToPositions)
 
 		moveToPositions = trimPositions(moveToPositions, a)
-
-		//fmt.Println(moveToPositions)
 
 		for _, newPos := range moveToPositions {
 			saveA := a
@@ -150,7 +157,6 @@ outer:
 			grid[saveA.row][saveA.col] = '.'
 			grid[a.row][a.col] = a.class
 			amphipods[amphipodIndex] = a
-			//Print(grid)
 
 			OrganizeAmphipods(amphipods, grid)
 
@@ -195,5 +201,7 @@ func main() {
 
 	Print(grid)
 	OrganizeAmphipods(amphipods, grid)
+
+	// 53108 is too low
 	fmt.Println("Energy used =", MinEnergyUsed)
 }
