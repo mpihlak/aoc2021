@@ -9,18 +9,12 @@ import (
 )
 
 const HallwayRow = 1
-const FrontRoomRow = 2
-const BackRoomRow = 3
 
 type Amphipod struct {
 	class      rune
 	row, col   int
 	hasMoved   bool
 	energyUsed int
-}
-
-type Position struct {
-	row, col, energy int
 }
 
 func Print(grid [][]rune) {
@@ -39,26 +33,28 @@ func (a Amphipod) String() string {
 var AmphipodHomes = map[rune]int{'A': 3, 'B': 5, 'C': 7, 'D': 9}
 var EnergyCosts = map[rune]int{'A': 1, 'B': 10, 'C': 100, 'D': 1000}
 
-// Amount of energy required to move to hallway
-func RoomToHallwayEnergy(a Amphipod) int {
-	return 0
-}
-
 var MinEnergyUsed = math.MaxInt
 
-func addPosition(positions []Position, a Amphipod, col, energySum int, grid [][]rune) []Position {
+func addPosition(positions []Amphipod, a Amphipod, col, energySum int, grid [][]rune) []Amphipod {
 	energyCost := EnergyCosts[a.class]
-	homeCol := AmphipodHomes[a.class]
 
-	if col == homeCol {
-		if grid[BackRoomRow][col] == '.' {
-			positions = append(positions, Position{BackRoomRow, col, energySum + 2*energyCost})
-		} else if grid[BackRoomRow][col] == a.class && grid[FrontRoomRow][col] == '.' {
-			positions = append(positions, Position{FrontRoomRow, col, energySum + energyCost})
+	if col == AmphipodHomes[a.class] {
+		// We can move into our home room if it is empty or contains only our class
+		row := a.row
+		for i := HallwayRow + 1; grid[i][col] != '#'; i++ {
+			if grid[i][col] != '.' && grid[i][col] != a.class {
+				return positions
+			}
+			if grid[i][col] == '.' {
+				row = i
+				energySum += energyCost
+			}
 		}
+
+		positions = append(positions, Amphipod{a.class, row, col, true, a.energyUsed + energySum})
 	} else {
-		if !a.hasMoved && grid[FrontRoomRow][col] == '#' {
-			positions = append(positions, Position{HallwayRow, col, energySum + energyCost})
+		if !a.hasMoved && grid[HallwayRow+1][col] == '#' {
+			positions = append(positions, Amphipod{a.class, HallwayRow, col, true, a.energyUsed + energySum + energyCost})
 		}
 	}
 
@@ -66,13 +62,25 @@ func addPosition(positions []Position, a Amphipod, col, energySum int, grid [][]
 }
 
 // If we have a home location in there, then just use that
-func trimPositions(positions []Position, a Amphipod) []Position {
+func trimPositions(positions []Amphipod, a Amphipod) []Amphipod {
 	for _, p := range positions {
 		if p.col == AmphipodHomes[a.class] {
-			return []Position{p}
+			return []Amphipod{p}
 		}
 	}
 	return positions
+}
+
+func isAtHome(a Amphipod, grid [][]rune) bool {
+	if a.col != AmphipodHomes[a.class] {
+		return false
+	}
+	for i := a.row; grid[i][a.col] != '#'; i++ {
+		if grid[i][a.col] != a.class {
+			return false
+		}
+	}
+	return true
 }
 
 func OrganizeAmphipods(amphipods []Amphipod, grid [][]rune) int {
@@ -98,27 +106,25 @@ func OrganizeAmphipods(amphipods []Amphipod, grid [][]rune) int {
 		return totalEnergyUsed
 	}
 
+outer:
 	for amphipodIndex, a := range amphipods {
 		//fmt.Println("Considering amphipod", a)
-		moveToPositions := []Position{}
-		energy := 0
 
-		// Skip the amphipods that are at home
-		if a.col == AmphipodHomes[a.class] && (a.row == BackRoomRow || (a.row == FrontRoomRow && grid[a.row+1][a.col] == a.class)) {
+		if isAtHome(a, grid) {
 			continue
 		}
 
+		moveToPositions := []Amphipod{}
+		energy := 0
+
 		if !a.hasMoved {
 			// Still in a room, see if we can step out
-			if a.row == BackRoomRow {
-				if grid[FrontRoomRow][a.col] != '.' {
-					// Exit blocked
-					//fmt.Println("Exit blocked")
-					continue
+			for i := a.row - 1; i >= HallwayRow; i-- {
+				if grid[i][a.col] != '.' {
+					continue outer
 				}
 				energy += EnergyCosts[a.class]
 			}
-			energy += EnergyCosts[a.class]
 		}
 
 		energySum := energy + EnergyCosts[a.class]
@@ -137,12 +143,9 @@ func OrganizeAmphipods(amphipods []Amphipod, grid [][]rune) int {
 
 		//fmt.Println(moveToPositions)
 
-		for _, pos := range moveToPositions {
+		for _, newPos := range moveToPositions {
 			saveA := a
-			a.hasMoved = true
-			a.row = pos.row
-			a.col = pos.col
-			a.energyUsed = a.energyUsed + pos.energy
+			a = newPos
 
 			grid[saveA.row][saveA.col] = '.'
 			grid[a.row][a.col] = a.class
