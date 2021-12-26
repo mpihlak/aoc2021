@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -12,10 +13,10 @@ type ALUInstruction struct {
 	op         string
 	left       string // left hand of the operation, always a register
 	right      string // right hand side of the operation if it's a register (blank for values)
-	rightValue int64
+	rightValue int
 }
 
-func numberToArray(num int64) []int {
+func numberToArray(num int) []int {
 	result := make([]int, 14)
 	for i := 0; i < 14; i++ {
 		result[len(result)-i-1] = int(num%9 + 1)
@@ -24,19 +25,19 @@ func numberToArray(num int64) []int {
 	return result
 }
 
-func arrayToNumber(a []int) int64 {
-	result := int64(0)
+func arrayToNumber(a []int) int {
+	result := 0
 	for i := 0; i < len(a); i++ {
-		result = (result * 9) + int64(a[i]-1)
+		result = (result * 9) + (a[i] - 1)
 	}
 	return result
 }
 
-type RegisterMap map[string]int64
+type RegisterMap map[string]int
 
 // Run the program, return values of registers
 func RunProgram(program []ALUInstruction, input []int, registers RegisterMap) (RegisterMap, bool) {
-	rval := func(instr ALUInstruction) int64 {
+	rval := func(instr ALUInstruction) int {
 		if instr.right != "" {
 			return registers[instr.right]
 		} else {
@@ -47,7 +48,7 @@ func RunProgram(program []ALUInstruction, input []int, registers RegisterMap) (R
 	for _, instr := range program {
 		switch instr.op {
 		case "inp":
-			value := int64(input[0])
+			value := input[0]
 			input = input[1:]
 			registers[instr.left] = value
 		case "add":
@@ -99,7 +100,7 @@ func ReadProgram(input []string) []ALUInstruction {
 				instr.right = s[2]
 			} else {
 				r, _ := strconv.Atoi(s[2])
-				instr.rightValue = int64(r)
+				instr.rightValue = r
 			}
 		}
 		program = append(program, instr)
@@ -107,58 +108,63 @@ func ReadProgram(input []string) []ALUInstruction {
 	return program
 }
 
-func registersToString(r map[string]int64) string {
-	return fmt.Sprintf("x: %3d y: %3d w: %3d z: %10d", r["x"], r["y"], r["w"], r["z"])
-}
-
-func TestProgram(program []ALUInstruction) {
-	for j := 1; j <= 9; j++ {
-		for i := 0; i < 1000; i++ {
-			registers := make(RegisterMap)
-			registers["z"] = int64(i)
-			input := []int{j}
-
-			if result, ok := RunProgram(program, input, registers); !ok {
-				fmt.Println("ERROR with input", input, registers)
-			} else {
-				z := result["z"]
-				if z == 0 {
-					fmt.Printf("Z in: %3d Input: %v Z out: %v\n", i, input, z)
-				}
-			}
-		}
-	}
-
-	r := make(RegisterMap)
-	r["z"] = 1123343435
-	fmt.Println(RunProgram(program, []int{9}, r))
-}
-
 type SolverResult struct {
-	zValue int
-	wValue int
+	z int
+	w int
 }
 
-func SolveProgram(program []ALUInstruction, wantZValue int64) []SolverResult {
-	result := []SolverResult{}
+func SolveProgram(program []ALUInstruction, wantZValue int) []SolverResult {
+	solutions := []SolverResult{}
+	maxZValue := wantZValue*26 + 100
+	minZValue := wantZValue * 26
+	if minZValue > 100 {
+		minZValue -= 100
+	}
 	for w := 1; w <= 9; w++ {
-		for i := 0; i < 1000; i++ {
+		for z := minZValue; z <= maxZValue; z++ {
 			registers := make(RegisterMap)
-			registers["z"] = int64(i)
+			registers["z"] = z
 			input := []int{w}
 
 			if result, ok := RunProgram(program, input, registers); !ok {
 				fmt.Println("ERROR with input", input, registers)
 			} else {
-				z := result["z"]
-				if z == wantZValue {
-					fmt.Printf("Z in: %3d Input: %v Z out: %v\n", i, input, z)
-					result = append(result, SolverResult{z, w})
+				zResult := result["z"]
+				if zResult == wantZValue {
+					//fmt.Printf("Z in: %3d Input: %v Z out: %v\n", z, input, zResult)
+					solutions = append(solutions, SolverResult{z, w})
+					break
 				}
 			}
 		}
 	}
-	return result
+
+	sort.Slice(solutions, func(i, j int) bool { return solutions[i].w > solutions[j].w })
+	return solutions
+}
+
+func Solve(programs [][]ALUInstruction, forValue int, digits []int) bool {
+	if len(programs) == 0 {
+		fmt.Println("Solution:", digits)
+		return true
+	}
+
+	pos := len(programs) - 1
+	res := SolveProgram(programs[pos], forValue)
+
+	if len(res) > 0 {
+		fmt.Printf("Program %d solved for %d: %+v\n", pos, forValue, res)
+
+		for _, r := range res {
+			digits = append(digits, r.w)
+			if Solve(programs[:len(programs)-1], r.z, digits) {
+				return true
+			}
+			digits = digits[:len(digits)-1]
+		}
+	}
+
+	return false
 }
 
 func main() {
@@ -184,10 +190,13 @@ func main() {
 	}
 	programs = append(programs, currentProgram)
 
-	for i := range programs {
-		pos := len(programs) - i - 1
-		res := SolveProgram(programs[pos], 0)
-		fmt.Println(res)
-		break
+	//TestProgram(programs)
+	//return
+
+	r := []int{}
+	if Solve(programs, 0, r) {
+		fmt.Println("Answer =", r)
+	} else {
+		fmt.Println("No answer.")
 	}
 }
