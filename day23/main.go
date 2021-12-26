@@ -103,8 +103,12 @@ func OrganizeAmphipods(amphipods []Amphipod, grid [][]rune) int {
 		moveToPositions := []Position{}
 		energy := 0
 
+		// Skip the amphipods that are at home
+		if a.col == AmphipodHomes[a.class] && (a.row == BackRoomRow || (a.row == FrontRoomRow && grid[a.row+1][a.col] == a.class)) {
+			continue
+		}
+
 		if !a.hasMoved {
-			//fmt.Println("still in a room")
 			// Still in a room, see if we can step out
 			if a.row == BackRoomRow {
 				if grid[FrontRoomRow][a.col] != '.' {
