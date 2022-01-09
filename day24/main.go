@@ -138,13 +138,17 @@ type ZKey struct {
 	z     int64
 }
 
-type ZMap map[ZKey]int64
+type ZVal struct {
+	min, max int64
+}
+
+type ZMap map[ZKey]ZVal
 
 func Solve(programs [][]ALUInstruction, findSmallestSerial bool) (int64, int64) {
 	zValues := make(ZMap)
-	zValues[ZKey{}] = 0
+	zValues[ZKey{}] = ZVal{}
 
-	result := []int64{}
+	result := []ZVal{}
 
 	for p := range programs {
 		maxZ := Pow(26, len(programs)-p) // Overflow on 1st run, but that's OK
@@ -159,21 +163,19 @@ func Solve(programs [][]ALUInstruction, findSmallestSerial bool) (int64, int64) 
 					if rz > maxValue {
 						maxValue = rz
 					}
-					val := v*9 + int64(digit-1)
+					minVal := v.min*9 + int64(digit-1)
+					maxVal := v.max*9 + int64(digit-1)
 					key := ZKey{digit, rz}
 					if cachedVal, ok := newZValues[key]; ok {
-						if findSmallestSerial {
-							if val < cachedVal {
-								newZValues[key] = val
-							}
-						} else {
-							if val > cachedVal {
-								newZValues[key] = val
-							}
+						if cachedVal.min < minVal {
+							minVal = cachedVal.min
 						}
-					} else {
-						newZValues[key] = val
+						if cachedVal.max > maxVal {
+							maxVal = cachedVal.max
+						}
 					}
+					val := ZVal{minVal, maxVal}
+					newZValues[key] = val
 
 					if p == 13 && rz == 0 {
 						result = append(result, val)
@@ -188,9 +190,12 @@ func Solve(programs [][]ALUInstruction, findSmallestSerial bool) (int64, int64) 
 		zValues = newZValues
 	}
 
-	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
+	sort.Slice(result, func(i, j int) bool { return result[i].min < result[j].min })
+	minVal := result[0].min
+	sort.Slice(result, func(i, j int) bool { return result[i].max > result[j].max })
+	maxVal := result[0].max
 
-	return result[0], result[len(result)-1]
+	return minVal, maxVal
 }
 
 func main() {
