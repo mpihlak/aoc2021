@@ -16,32 +16,49 @@ type ALUInstruction struct {
 	rightValue int
 }
 
-func numberToArray(num int) []int {
-	result := make([]int, 14)
-	for i := 0; i < 14; i++ {
+func numberToArray(num int64, n int) []int {
+	result := make([]int, n)
+	for i := 0; i < n; i++ {
 		result[len(result)-i-1] = int(num%9 + 1)
 		num /= 9
 	}
 	return result
 }
 
-func arrayToNumber(a []int) int {
-	result := 0
+func formatNumber(n int64) string {
+	a := numberToArray(n, 14)
+	res := ""
+	for _, v := range a {
+		res += fmt.Sprintf("%d", v)
+	}
+	return res
+}
+
+func arrayToNumber(a []int) int64 {
+	result := int64(0)
 	for i := 0; i < len(a); i++ {
-		result = (result * 9) + (a[i] - 1)
+		result = (result * 9) + int64(a[i]-1)
 	}
 	return result
 }
 
-type RegisterMap map[string]int
+type RegisterMap map[string]int64
+
+func RunWithZW(program []ALUInstruction, z int64, w int) int64 {
+	res, ok := RunProgram(program, []int{w}, map[string]int64{"z": z})
+	if !ok {
+		panic("program failed")
+	}
+	return res["z"]
+}
 
 // Run the program, return values of registers
 func RunProgram(program []ALUInstruction, input []int, registers RegisterMap) (RegisterMap, bool) {
-	rval := func(instr ALUInstruction) int {
+	rval := func(instr ALUInstruction) int64 {
 		if instr.right != "" {
 			return registers[instr.right]
 		} else {
-			return instr.rightValue
+			return int64(instr.rightValue)
 		}
 	}
 
@@ -50,7 +67,7 @@ func RunProgram(program []ALUInstruction, input []int, registers RegisterMap) (R
 		case "inp":
 			value := input[0]
 			input = input[1:]
-			registers[instr.left] = value
+			registers[instr.left] = int64(value)
 		case "add":
 			registers[instr.left] += rval(instr)
 		case "mul":
@@ -108,63 +125,72 @@ func ReadProgram(input []string) []ALUInstruction {
 	return program
 }
 
-type SolverResult struct {
-	z int
-	w int
+func Pow(a int64, n int) int64 {
+	res := int64(1)
+	for ; n > 0; n-- {
+		res *= a
+	}
+	return res
 }
 
-func SolveProgram(program []ALUInstruction, wantZValue int) []SolverResult {
-	solutions := []SolverResult{}
-	maxZValue := wantZValue*26 + 100
-	minZValue := wantZValue * 26
-	if minZValue > 100 {
-		minZValue -= 100
-	}
-	for w := 1; w <= 9; w++ {
-		for z := minZValue; z <= maxZValue; z++ {
-			registers := make(RegisterMap)
-			registers["z"] = z
-			input := []int{w}
+type ZKey struct {
+	digit int
+	z     int64
+}
 
-			if result, ok := RunProgram(program, input, registers); !ok {
-				fmt.Println("ERROR with input", input, registers)
-			} else {
-				zResult := result["z"]
-				if zResult == wantZValue {
-					//fmt.Printf("Z in: %3d Input: %v Z out: %v\n", z, input, zResult)
-					solutions = append(solutions, SolverResult{z, w})
-					break
+type ZMap map[ZKey]int64
+
+func Solve(programs [][]ALUInstruction, findSmallestSerial bool) (int64, int64) {
+	zValues := make(ZMap)
+	zValues[ZKey{}] = 0
+
+	result := []int64{}
+
+	for p := range programs {
+		maxZ := Pow(26, len(programs)-p) // Overflow on 1st run, but that's OK
+		newZValues := make(ZMap)
+		filtered := 0
+		maxValue := int64(0)
+
+		for digit := 1; digit <= 9; digit++ {
+			for k, v := range zValues {
+				rz := RunWithZW(programs[p], k.z, digit)
+				if rz < maxZ {
+					if rz > maxValue {
+						maxValue = rz
+					}
+					val := v*9 + int64(digit-1)
+					key := ZKey{digit, rz}
+					if cachedVal, ok := newZValues[key]; ok {
+						if findSmallestSerial {
+							if val < cachedVal {
+								newZValues[key] = val
+							}
+						} else {
+							if val > cachedVal {
+								newZValues[key] = val
+							}
+						}
+					} else {
+						newZValues[key] = val
+					}
+
+					if p == 13 && rz == 0 {
+						result = append(result, val)
+					}
+				} else {
+					filtered++
 				}
 			}
 		}
+
+		fmt.Println("Program", p, "zvalues=", len(newZValues), "maxZ", maxZ, "filtered", filtered, "maxVal", maxValue)
+		zValues = newZValues
 	}
 
-	sort.Slice(solutions, func(i, j int) bool { return solutions[i].w > solutions[j].w })
-	return solutions
-}
+	sort.Slice(result, func(i, j int) bool { return result[i] < result[j] })
 
-func Solve(programs [][]ALUInstruction, forValue int, digits []int) bool {
-	if len(programs) == 0 {
-		fmt.Println("Solution:", digits)
-		return true
-	}
-
-	pos := len(programs) - 1
-	res := SolveProgram(programs[pos], forValue)
-
-	if len(res) > 0 {
-		fmt.Printf("Program %d solved for %d: %+v\n", pos, forValue, res)
-
-		for _, r := range res {
-			digits = append(digits, r.w)
-			if Solve(programs[:len(programs)-1], r.z, digits) {
-				return true
-			}
-			digits = digits[:len(digits)-1]
-		}
-	}
-
-	return false
+	return result[0], result[len(result)-1]
 }
 
 func main() {
@@ -190,13 +216,6 @@ func main() {
 	}
 	programs = append(programs, currentProgram)
 
-	//TestProgram(programs)
-	//return
-
-	r := []int{}
-	if Solve(programs, 0, r) {
-		fmt.Println("Answer =", r)
-	} else {
-		fmt.Println("No answer.")
-	}
+	smallest, largest := Solve(programs, false)
+	fmt.Println("Smallest =", formatNumber(smallest), "Largest =", formatNumber(largest))
 }
